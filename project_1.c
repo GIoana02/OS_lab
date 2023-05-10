@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+/*
 void print_file_info(const char *filename, const struct stat *st) {
     
     printf("File: %s\n", filename); 
@@ -143,7 +143,8 @@ void print_file_info(const char *filename, const struct stat *st) {
 	}
     }
 }
-
+*/
 int main(){
-    
+    printf("Hello world!\n");
+	return 0;
 }
