@@ -10,7 +10,7 @@ int main(int args, char* argv[]){
     }
     struct stat info;
     int stat=lstat(argv[1],&info);
-    printf("%d\n", stat);
+    printf("%d\n", stat){
     int regFile=S_ISREG(info.st_mode);
     int directory=S_ISDIR(info.st_mode);
     int simbLink=S_ISLNK(info.st_mode);
