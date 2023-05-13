@@ -12,23 +12,19 @@
 #include <fcntl.h>
 
 int count_lines(char* filename) {
-    FILE* fp;
+   FILE* file = fopen(filename, "r");
+    if (!file) {
+        perror("fopen");
+        exit(EXIT_FAILURE);
+    }
+
     int count = 0;
-    char ch;
-
-    fp = fopen(filename, "r");
-    if (fp == NULL) {
-        printf("Could not open file %s\n", filename);
-        return -1;
+    char buffer[1024];
+    while (fgets(buffer, 1024, file)) {
+        count++;
     }
 
-    while ((ch = fgetc(fp)) != EOF) {
-        if (ch == '\n') {
-            count++;
-        }
-    }
-
-    fclose(fp);
+    fclose(file);
     return count;
 }
 
@@ -143,14 +139,14 @@ void print_file_info(const char *filename) {
     char options[100];
     printf("Enter options: ");
     fgets(options, 100, stdin);
-    int running =1;
+    
     if(S_ISREG(sb.st_mode)){
-	char* p = getchar();
-	while(*p !=EOF && running){
+	char* p =options;
+	while(*p && options!=EOF){
 	    if(*p=='-'){
 	     p++;
 	    
-			while(*p){
+			while(p){
 			if(*p=='n'){
 				printf("Name: %s\n", filename);
 			}
@@ -158,7 +154,6 @@ void print_file_info(const char *filename) {
 				printf("Size: %ld bytes\n", sb.st_size);
 			}
 			else if(*p=='h'){
-				//add hard link count to display
 				printf("Hard link count: %ld links\n", sb.st_nlink);
 			}
 			else if(*p=='m'){
@@ -166,7 +161,7 @@ void print_file_info(const char *filename) {
 				printf("Time of last modification: %s\n", ctime(&sb.st_mtime));
 			}
 			else if(*p=='a'){
-				//add function to print access rights
+
 				printf("Access rights: \n");
 				print_access_rights(sb.st_mode);
 			}
@@ -189,14 +184,15 @@ void print_file_info(const char *filename) {
 			p++;
 			}
 	    }
+		exit(0);
 	}
     }
     else if(S_ISLNK(sb.st_mode)){
-	char* p=getchar();
-	while(*p !=EOF && running){
+	char* p=options;
+	while(*p && options!=EOF){
 	    if(*p=='-'){
 		p++;
-
+			while(*p){
 		    if(*p=='n'){
 			printf("Name: %s\n", filename);
 		    }
@@ -221,37 +217,39 @@ void print_file_info(const char *filename) {
 				}
 		    }
 		    else if(*p=='a'){
-			//add function to print access rights
 			printf("Access rights: \n");
 			print_access_rights(sb.st_mode);
 		    }
 			else{
 				printf("Error: Invalid option -%c\n", *p);
 			}
+			p++;
+			}
 		}
 		else{
 			printf("Error: Invalid option string.\n");
 	    }
+		exit(0);
 	}
     }
     else if(S_ISDIR(sb.st_mode)){
-	char* p=getchar();
-	while(*p !=EOF && running){
+	char* p=options;
+	while(*p && options!=EOF){
 	    if(*p){
 		p++;
 		
 		while(*p){
-		    if(*p=='n'){
+		    if(p=='n'){
 			printf("Name: %s\n", filename);
 		    }
-		    else if(*p=='d'){
+		    else if(p=='d'){
 			printf("Size of directory: %ld\n", sb.st_size);
 		    }
-		    else if(*p=='a'){
+		    else if(p=='a'){
 			printf("Access rights: \n");
 			print_access_rights(sb.st_mode);
 		    }
-		    else if(*p=='c'){
+		    else if(p=='c'){
 				int count=0;
 				DIR* dirp =opendir(filename);
 				if(dirp ==NULL){
@@ -278,6 +276,7 @@ void print_file_info(const char *filename) {
 		else{
 			printf("Error: Invalid options string.\n");
 		}
+		exit(0);
 	}
 	}
 }
@@ -291,15 +290,15 @@ int main(int argc, char* argv[]){
 
 	int num_files=argc-1;
 	int i, score;
-	char file_type,filename[256];
+	char filename[256];
 
 	for(i=1; i<=num_files; i++){
 		struct stat status;
+		strcpy(filename, argv[i]);
 
 		pid_t menu=fork();
 
 		if(menu==0){
-			strcpy(filename, argv[i]);
 			print_file_info(filename);
 			exit(0);
 		}
@@ -310,6 +309,7 @@ int main(int argc, char* argv[]){
 				printf("Pipe couldn't be created");
 				exit(0);
 			}
+			
 			int child_status;
 			waitpid(menu, &child_status, 0);
 			pid_t s_child =fork();
@@ -320,7 +320,7 @@ int main(int argc, char* argv[]){
 				if((newfd =  dup2(pfd[1],1))<0)
                     {
                         perror("Error couldn not duplicate\n");
-                        exit(1);
+                        exit(2);
                     }
 				if(S_ISREG(status.st_mode)==1 && strstr(argv[i], ".c")){
 					if(S_ISREG(status.st_mode)==1){
@@ -338,7 +338,7 @@ int main(int argc, char* argv[]){
 					}
 				}
 				close(pfd[1]);
-				exit(1);
+				exit(3);
 				}
 				close(pfd[1]);
 				FILE *stream = fdopen(pfd[0], "r");
@@ -384,7 +384,7 @@ int main(int argc, char* argv[]){
 				
 		}else{
                 perror("Error with menu process");
-                exit(-2);
+                exit(4);
             } 
 	}
     printf("Hello world!\n");
