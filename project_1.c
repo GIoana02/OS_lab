@@ -111,7 +111,7 @@ void print_file_info(const char *filename) {
      printf("\t-l: create simbolink link\n");
      }
     else if (S_ISLNK(sb.st_mode)) {
-	printf("Directory\n");
+	printf("Symbolic link\n");
 	printf("Options:\n");
 	printf("\t-n: name\n");
 	printf("\t-l: delete symbolic link\n"); //if this option is given the other options will no longer be performed
@@ -122,7 +122,7 @@ void print_file_info(const char *filename) {
 
      }
     else if (S_ISDIR(sb.st_mode)) {
-	printf("Symbolic link\n");
+	printf("Directory\n");
 	printf("Options:\n");
 	printf("\t-n: name\n");
 	printf("\t-d: size\n");
@@ -140,7 +140,7 @@ void print_file_info(const char *filename) {
     printf("Enter options: ");
     fgets(options, 100, stdin);
     
-    if(S_ISREG(sb.st_mode)){
+    if(S_ISREG(sb.st_mode)==1){
 	char* p =options;
 	while(*p && options!=EOF){
 	    if(*p=='-'){
@@ -187,7 +187,7 @@ void print_file_info(const char *filename) {
 		exit(0);
 	}
     }
-    else if(S_ISLNK(sb.st_mode)){
+    else if(S_ISLNK(sb.st_mode)==1){
 	char* p=options;
 	while(*p && options!=EOF){
 	    if(*p=='-'){
@@ -232,24 +232,24 @@ void print_file_info(const char *filename) {
 		exit(0);
 	}
     }
-    else if(S_ISDIR(sb.st_mode)){
+    else if(S_ISDIR(sb.st_mode)==1){
 	char* p=options;
 	while(*p && options!=EOF){
 	    if(*p){
 		p++;
 		
 		while(*p){
-		    if(p=='n'){
+		    if(*p=='n'){
 			printf("Name: %s\n", filename);
 		    }
-		    else if(p=='d'){
+		    else if(*p=='d'){
 			printf("Size of directory: %ld\n", sb.st_size);
 		    }
-		    else if(p=='a'){
+		    else if(*p=='a'){
 			printf("Access rights: \n");
 			print_access_rights(sb.st_mode);
 		    }
-		    else if(p=='c'){
+		    else if(*p=='c'){
 				int count=0;
 				DIR* dirp =opendir(filename);
 				if(dirp ==NULL){
@@ -289,35 +289,39 @@ int main(int argc, char* argv[]){
 	}
 
 	int num_files=argc-1;
-	int i, score;
+	int i;
 	char filename[256];
 
 	for(i=1; i<=num_files; i++){
 		struct stat status;
 		strcpy(filename, argv[i]);
 
-		pid_t menu=fork();
-
-		if(menu==0){
-			print_file_info(filename);
-			exit(0);
+		pid_t menu_child=fork();
+		
+		if(menu_child<0){
+			printf("Process couldn't be created\n");
 		}
-		else if(menu>0){
+		else if(menu_child==0){
+			print_file_info(filename);
+			//exit(0);
+		}
+		else {
 			int pfd[2]; // pfd[0]- read descriptor, pfd[1]-write descriptor
 			int newfd;
 			if(pipe(pfd)<0){
 				printf("Pipe couldn't be created");
 				exit(0);
 			}
-			
-			int child_status;
-			waitpid(menu, &child_status, 0);
+
 			pid_t s_child =fork();
+			
 			if(s_child<0){
 					printf("Error couldn't create second child process.\n");
+					return -1;
 			}else if(s_child==0){
+				printf("Nebunie merge\n");
 				close(pfd[0]);
-				if((newfd =  dup2(pfd[1],1))<0)
+				if((newfd = dup2(pfd[1],1))<0)
                     {
                         perror("Error couldn not duplicate\n");
                         exit(2);
@@ -346,7 +350,7 @@ int main(int argc, char* argv[]){
 					char errors[100], warnings[100];
 					fscanf(stream, "%s", errors);
 					fscanf(stream, "%s", warnings);
-					FILE *file=fopen("grades.txt", "a");
+					FILE *file=fopen("try.txt", "a");
 
 					if(file == NULL ){
 						perror("Failed to open file");
@@ -365,27 +369,25 @@ int main(int argc, char* argv[]){
 				close(pfd[0]);
 				int status;
 				pid_t childPid=waitpid(s_child,&status,0);
+
 				if(WIFEXITED(status)){
 					int exitCode =WEXITSTATUS(status);
-					printf("The process with PID %d has ended with exit code %d\n", childPid, exitCode);
+					printf("The second child process with PID %d has ended with exit code %d\n", childPid, exitCode);
 				}
 				else{
 					printf("The process with PID %d has terminated abnormally\n", childPid);
 				}
 
-				childPid=waitpid(s_child, &status, 0);
+				childPid=waitpid(menu_child, &status, 0);
 
 				if(WIFEXITED(status)){
 					int exitCode=WEXITSTATUS(status);
-					printf("The process with PID %d has ended with exit code %d\n", childPid, exitCode);
+					printf("The menu child process with PID %d has ended with exit code %d\n", childPid, exitCode);
 				} else{
 					printf("The process with PID %d has terminated abnormally\n", childPid);
 				}
 				
-		}else{
-                perror("Error with menu process");
-                exit(4);
-            } 
+		}
 	}
     printf("Hello world!\n");
 	return 0;
