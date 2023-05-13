@@ -9,6 +9,39 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include <fcntl.h>
+
+int count_lines(char* filename) {
+    FILE* fp;
+    int count = 0;
+    char ch;
+
+    fp = fopen(filename, "r");
+    if (fp == NULL) {
+        printf("Could not open file %s\n", filename);
+        return -1;
+    }
+
+    while ((ch = fgetc(fp)) != EOF) {
+        if (ch == '\n') {
+            count++;
+        }
+    }
+
+    fclose(fp);
+    return count;
+}
+
+void create_txt_file_in_directory(char *filename) {
+    char file_path[256];
+    sprintf(file_path, "%s/%s_file.txt", filename, filename);
+    int fd = open(file_path, O_WRONLY | O_CREAT, 0644);
+    if (fd == -1) {
+        perror("open");
+        exit(EXIT_FAILURE);
+    }
+    close(fd);
+}
 
 int compute_score(char* filename) {
     char command[256];
@@ -110,10 +143,10 @@ void print_file_info(const char *filename) {
     char options[100];
     printf("Enter options: ");
     fgets(options, 100, stdin);
-    
+    int running =1;
     if(S_ISREG(sb.st_mode)){
-	char* p =options;
-	while(*p){
+	char* p = getchar();
+	while(*p !=EOF && running){
 	    if(*p=='-'){
 	     p++;
 	    
@@ -159,8 +192,8 @@ void print_file_info(const char *filename) {
 	}
     }
     else if(S_ISLNK(sb.st_mode)){
-	char* p=options;
-	while(*p){
+	char* p=getchar();
+	while(*p !=EOF && running){
 	    if(*p=='-'){
 		p++;
 
@@ -202,8 +235,8 @@ void print_file_info(const char *filename) {
 	}
     }
     else if(S_ISDIR(sb.st_mode)){
-	char* p=options;
-	while(*p){
+	char* p=getchar();
+	while(*p !=EOF && running){
 	    if(*p){
 		p++;
 		
@@ -257,10 +290,11 @@ int main(int argc, char* argv[]){
 	}
 
 	int num_files=argc-1;
-	int status, i, score;
+	int i, score;
 	char file_type,filename[256];
 
 	for(i=1; i<=num_files; i++){
+		struct stat status;
 
 		pid_t menu=fork();
 
@@ -282,15 +316,72 @@ int main(int argc, char* argv[]){
 			if(s_child<0){
 					printf("Error couldn't create second child process.\n");
 			}else if(s_child==0){
-				close(pdf[0]);
+				close(pfd[0]);
 				if((newfd =  dup2(pfd[1],1))<0)
                     {
-                        perror("Error when calling dup2\n");
+                        perror("Error couldn not duplicate\n");
                         exit(1);
                     }
-				
-				
+				if(S_ISREG(status.st_mode)==1 && strstr(argv[i], ".c")){
+					if(S_ISREG(status.st_mode)==1){
+						execlp("bash", "bash", "srcipt.sh", argv[i], NULL);
+					}
+				}else if(S_ISREG(status.st_mode)==1){
+					int numOfLines=count_lines(argv[i]);
+					printf("The number of lines is: %d\n", numOfLines);
+				}else if(S_ISDIR(status.st_mode)==1){
+					create_txt_file_in_directory(argv[i]);
+					printf("%s_file.txt created\n", argv[i]);
+				}else if(S_ISLNK(status.st_mode)==1){
+					if(execlp("chmod", "chmod", "u=rwx,g=rw,o=---",argv[i], NULL)== -1){
+						perror("Failed to execute chmod command");
+					}
 				}
+				close(pfd[1]);
+				exit(1);
+				}
+				close(pfd[1]);
+				FILE *stream = fdopen(pfd[0], "r");
+				if(S_ISREG(status.st_mode)==1 && strstr(argv[i], ".c")){
+					char errors[100], warnings[100];
+					fscanf(stream, "%s", errors);
+					fscanf(stream, "%s", warnings);
+					FILE *file=fopen("grades.txt", "a");
+
+					if(file == NULL ){
+						perror("Failed to open file");
+						return 1;
+					}
+
+					fprintf(file, "%s : %.1f\n", argv[i], compute_score(argv[i]));
+					fclose(file);
+				}
+
+				char buffer[1024];
+
+				while(fgets(buffer, sizeof(buffer),stream)!=NULL){
+					printf("%s", buffer);
+				}
+				close(pfd[0]);
+				int status;
+				pid_t childPid=waitpid(s_child,&status,0);
+				if(WIFEXITED(status)){
+					int exitCode =WEXITSTATUS(status);
+					printf("The process with PID %d has ended with exit code %d\n", childPid, exitCode);
+				}
+				else{
+					printf("The process with PID %d has terminated abnormally\n", childPid);
+				}
+
+				childPid=waitpid(s_child, &status, 0);
+
+				if(WIFEXITED(status)){
+					int exitCode=WEXITSTATUS(status);
+					printf("The process with PID %d has ended with exit code %d\n", childPid, exitCode);
+				} else{
+					printf("The process with PID %d has terminated abnormally\n", childPid);
+				}
+				
 		}else{
                 perror("Error with menu process");
                 exit(-2);
