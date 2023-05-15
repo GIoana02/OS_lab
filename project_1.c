@@ -12,19 +12,22 @@
 #include <fcntl.h>
 
 int count_lines(char* filename) {
-   FILE* file = fopen(filename, "r");
-    if (!file) {
-        perror("fopen");
-        exit(EXIT_FAILURE);
+    FILE* fp;
+    int count = 0;
+    char line[256];
+
+    fp = fopen(filename, "r");
+    if (fp == NULL) {
+        perror("Failed to open file");
+        return -1;
     }
 
-    int count = 0;
-    char buffer[1024];
-    while (fgets(buffer, 1024, file)) {
+    while (fgets(line, sizeof(line), fp) != NULL && *line!=EOF) {
         count++;
     }
 
-    fclose(file);
+    fclose(fp);
+
     return count;
 }
 
@@ -142,7 +145,7 @@ void print_file_info(const char *filename) {
     
     if(S_ISREG(sb.st_mode)==1){
 	char* p =options;
-	while(*p && options!=EOF){
+	while(*p && *options!=EOF){
 	    if(*p=='-'){
 	     p++;
 	    
@@ -189,7 +192,7 @@ void print_file_info(const char *filename) {
     }
     else if(S_ISLNK(sb.st_mode)==1){
 	char* p=options;
-	while(*p && options!=EOF){
+	while(*p && *options!=EOF){
 	    if(*p=='-'){
 		p++;
 			while(*p){
@@ -234,7 +237,7 @@ void print_file_info(const char *filename) {
     }
     else if(S_ISDIR(sb.st_mode)==1){
 	char* p=options;
-	while(*p && options!=EOF){
+	while(*p && *options!=EOF){
 	    if(*p){
 		p++;
 		
@@ -296,6 +299,12 @@ int main(int argc, char* argv[]){
 		struct stat status;
 		strcpy(filename, argv[i]);
 
+		 //when stat fails to retrieve the file status
+		if (stat(filename, &status) != 0) {
+            printf("Failed to get file status\n");
+            continue;
+        }
+		//creating first child process that will handle the menu
 		pid_t menu_child=fork();
 		
 		if(menu_child<0){
@@ -303,7 +312,7 @@ int main(int argc, char* argv[]){
 		}
 		else if(menu_child==0){
 			print_file_info(filename);
-			//exit(0);
+			exit(0);
 		}
 		else {
 			int pfd[2]; // pfd[0]- read descriptor, pfd[1]-write descriptor
@@ -327,9 +336,9 @@ int main(int argc, char* argv[]){
                         exit(2);
                     }
 				if(S_ISREG(status.st_mode)==1 && strstr(argv[i], ".c")){
-					if(S_ISREG(status.st_mode)==1){
-						execlp("bash", "bash", "srcipt.sh", argv[i], NULL);
-					}
+					//if(S_ISREG(status.st_mode)==1){
+					//	execlp("bash", "bash", "script.sh", argv[i], NULL);
+					//}
 				}else if(S_ISREG(status.st_mode)==1){
 					int numOfLines=count_lines(argv[i]);
 					printf("The number of lines is: %d\n", numOfLines);
@@ -347,18 +356,8 @@ int main(int argc, char* argv[]){
 				close(pfd[1]);
 				FILE *stream = fdopen(pfd[0], "r");
 				if(S_ISREG(status.st_mode)==1 && strstr(argv[i], ".c")){
-					char errors[100], warnings[100];
-					fscanf(stream, "%s", errors);
-					fscanf(stream, "%s", warnings);
-					FILE *file=fopen("try.txt", "a");
-
-					if(file == NULL ){
-						perror("Failed to open file");
-						return 1;
-					}
-
-					fprintf(file, "%s : %.1f\n", argv[i], compute_score(argv[i]));
-					fclose(file);
+					printf("The score is: %d\n",compute_score(argv[i]));
+					
 				}
 
 				char buffer[1024];
